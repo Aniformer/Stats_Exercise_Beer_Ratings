@@ -1,0 +1,427 @@
+---
+title: 'Statistics Exercise on Beer Ratings'
+author: 'Anirudh Dahiya'
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+editor_options: 
+  
+  chunk_output_type: console
+---
+
+```{r setup, message=FALSE}
+#loading required packages & libraries
+library(tidyverse)
+library(dplyr)
+library(emmeans)
+library(gridExtra)
+library(Hmisc)
+library(car)
+library(psych)
+options(width=100)
+```
+
+---
+
+## Data Dictionary
+
+The following table describes the columns present in the craft beer dataset and the corresponding description elaborating on the kind of data present in each column. 
+
+Variable       | Description
+-------------- | ---------------------------------------------------------
+Name           | Name of the beer
+Style          | Type of beer and it's style (category)
+Brewery        | Organization where beer was brewed 
+ABV            | Alcohol by volume
+rating         | rating (score) given to a beer
+minIBU         | Minimum number of International Bitterness Units in beer
+maxIBU         | Maximum number of International Bitterness Units in beer
+Astringency    | Flavour and aroma in beer
+Body           | Fullness of flavour and mouthfeel of beer
+Alcohol        | Amount of alcohol in beer
+Bitter         | Amount of bitterness in beer
+Sweet          | Amount of sweetness in beer 
+Sour           | Amount of sourness in beer
+Salty          | Amount of salt in beer
+Fruits         | Amount of fruitiness in beer
+Hoppy          | Amount of hop in beer
+Spices         | Amount of spice in beer
+Malty          | Amount of malt in beer
+
+--- 
+
+# Part A
+
+## Code
+
+```{r Question 2 Data Understanding & Prepartion, message = FALSE}
+#Reading craft beer dataset
+craft_beer_data <- read.csv("Craft-Beer_data_set.csv")
+#Checking the structure of the data
+str(craft_beer_data)
+#The datatypes assigned to each variable is in accordance to the data it contains. 
+
+#Checking the summary statistics of the data
+summary(craft_beer_data)
+
+#From the summary statistics it is clear that none of the numeric variables contain any missing data, whether outliers exist will only be known by plotting each variable. Eventhough these variables might not be relevant to answer question 2a, omitting records that contain outliers changes the count of the dataset, hence plotting each variable is essential. 
+
+grid.arrange(
+#Checking continous/numeric data - plotting each variable 
+#ABV
+ggplot(craft_beer_data, aes(x=ABV , ..density..)) + geom_histogram(binwidth = 1) + labs(x="ABV", y="Density") + geom_density(),
+#rating
+ggplot(craft_beer_data, aes(x=rating , ..density..)) + geom_histogram(binwidth = 1) + labs(x="Ratings", y="Density") + geom_density(),
+#minIBU
+ggplot(craft_beer_data, aes(x=minIBU , ..density..)) + geom_histogram(binwidth = 1) + labs(x="minIBU", y="Density") + geom_density(),
+#maxIBU
+ggplot(craft_beer_data, aes(x=maxIBU , ..density..)) + geom_histogram(binwidth = 1) + labs(x="maxIBU", y="Density") + geom_density(),
+#Astringency
+ggplot(craft_beer_data, aes(x=Astringency , ..density..)) + geom_histogram(binwidth = 1) + labs(x="Astrigency", y="Density") + geom_density(),
+#Body
+ggplot(craft_beer_data, aes(x=Body , ..density..)) + geom_histogram(binwidth = 1) + labs(x="Body", y="Density") + geom_density(),
+#Alcohol
+ggplot(craft_beer_data, aes(x=Alcohol , ..density..)) + geom_histogram(binwidth = 1) + labs(x="Alcohol", y="Density") + geom_density(),
+#Bitter
+ggplot(craft_beer_data, aes(x=Bitter , ..density..)) + geom_histogram(binwidth = 1) + labs(x="Bitterness", y="Density") + geom_density(),
+#Sweet
+ggplot(craft_beer_data, aes(x=Sweet , ..density..)) + geom_histogram(binwidth = 1) + labs(x="Sweetness", y="Density") + geom_density(),
+#Sour
+ggplot(craft_beer_data, aes(x=Sour , ..density..)) + geom_histogram(binwidth = 1) + labs(x="Sourness", y="Density") + geom_density(),
+#Salty
+ggplot(craft_beer_data, aes(x=Salty , ..density..)) + geom_histogram(binwidth = 1) + labs(x="Saltiness", y="Density") + geom_density(),
+#Fruits
+ggplot(craft_beer_data, aes(x=Fruits , ..density..)) + geom_histogram(binwidth = 1) + labs(x="Fruitness", y="Density") + geom_density(),
+#Hoppy
+ggplot(craft_beer_data, aes(x=Hoppy , ..density..)) + geom_histogram(binwidth = 1) + labs(x="Hop", y="Density") + geom_density(),
+#Spices
+ggplot(craft_beer_data, aes(x=Spices , ..density..)) + geom_histogram(binwidth = 1) + labs(x="Spice", y="Density") + geom_density(),
+#Malty
+ggplot(craft_beer_data, aes(x=Malty , ..density..)) + geom_histogram(binwidth = 1) + labs(x="Malt", y="Density") + geom_density(),
+ncol = 3, widths = c(3,3,3), 
+top = "Distribution of All Numeric Data by Density")
+
+#After plotting the density of each variable,large values much greater than the mean value for each variable were observed. Even though they are very small in number for each variable they cannot be counted as outliers as the density plot for each variable shows us a gradual decline in number of beers that are related to such values - thus it cannot be random incorrect data entry. Also in the context of the objective, a beer for example can have an extremely high value for bitterness/fruitness/sourness, thus none of the large values found can be discarded as outliers. 
+
+#Looking for NA's in categorical data, since numeric data doesn't contain any
+craft_beer_data[rowSums(is.na(craft_beer_data)) > 0,]
+
+#Two records have missing names. But since this column isn't used anywhere in the analysis, the column will be retained and the missing names will be replaced with a dummy value that can be updated later. 
+craft_beer_data[1804, "Name"] <- "Dummy Name"
+craft_beer_data[2151, "Name"] <- "Dummy Name"
+
+#Checking categorical data
+count(craft_beer_data, Style)
+
+#The count for each category in Style adds up to the number of records in the data
+
+#Categorizing each record into a beer category
+craft_beer_data <- craft_beer_data %>% mutate(beer_category = case_when(grepl("IPA", Style, ignore.case = T) ~ "IPA", grepl("Lager", Style, ignore.case = T) ~ "Lager",grepl("Porter", Style, ignore.case = T) ~ "Porter",grepl("Stout", Style, ignore.case = T) ~ "Stout",grepl("Wheat", Style, ignore.case = T) ~ "Wheat", grepl("Pale",Style, ignore.case = T) ~ "Pale", grepl("Pilsner", Style, ignore.case = T) ~ "Pilsner", grepl("Bock", Style, ignore.case = T) ~ "Bock", TRUE ~ "Other"))
+
+```
+
+```{r Question 2a(1) Analysis, message = FALSE}
+#Creating a linear model to get the mean rating and CIs for each category
+m.rating.by.category <- lm(rating~beer_category, data=craft_beer_data)
+summary(m.rating.by.category)
+
+#Except for the Pale & Other categories, every other type of beer significantly predicts the rating since p value for those types is greater than 0.05. 
+
+#Estimating the mean rating and CIs of the mean rating for each beer category present in the model object
+( m.rating.by.category.emm <- emmeans(m.rating.by.category,~beer_category)  )
+
+#Plotting the CIs of the mean rating for each category to understand the output of the linear model better
+
+ggplot(summary(m.rating.by.category.emm), aes(x=beer_category, y=emmean, ymin=lower.CL, ymax=upper.CL)) + geom_point() + geom_linerange()  +  ylim(3.3,4.2) + labs(title="Mean Rating Across Category of Beers", subtitle = "Error bars are the 95% confidence intervals", x="Category of Beer", y="Rating Score") + coord_flip() 
+
+#From the above plot it can be inferred that the estimated marginal mean rating for each beer category is significant and accurate, since the CIs for all categories of beer are small and none of them overlap with 0. 
+```
+
+```{r Question 2a(2) Analysis, message = FALSE}
+#Reordering the beer categories in ascending order of their mean rating
+category_order <- summary(m.rating.by.category.emm)
+category_order <- category_order[order(category_order$emmean),]
+
+category_order$beer_category <- factor(category_order$beer_category, levels=c(category_order$beer_category), labels=c(category_order$beer_category))
+
+craft_beer_data$beer_category <- factor(craft_beer_data$beer_category, levels=c(category_order$beer_category), labels=c(category_order$beer_category))
+
+violin_plot <- ggplot(craft_beer_data, aes(x=beer_category, y=rating)) + geom_point(category_order, mapping =aes(x=beer_category, y=emmean), col ="magenta") + geom_linerange(category_order, mapping = aes(x=beer_category, y=emmean, ymin=lower.CL, ymax=upper.CL), col = "magenta") + geom_errorbar(category_order, mapping = aes(x=beer_category, y=emmean, ymin=lower.CL, ymax=upper.CL)) + geom_violin(mapping = aes(x = beer_category, y = rating, ymin = NULL, ymax = NULL), alpha=0.5) +labs(subtitle="Violin displays the density over individual ratings for beers.\nError bars are 95% CIs of the mean rating. \nCategories are represented in increasing order of mean rating.", y = "Rating Score", x = "Category of Beer", title = "Density of Raw Data & Model Predictions Between Categories") 
+print(violin_plot)
+
+```
+
+---
+
+## Report
+
+The craft beer data set contained 5558 records of beer, their name, types, manufacturing brewery along with measures such as ABV value and flavours. After going through the data in detail, no missing entries were found however couple of records did not contain names and this has to be updated going forward. 
+
+``` {r print violin plot, echo = FALSE, message = FALSE}
+print(violin_plot)
+```
+
+The above plot shows us the calculated mean rating and CIs for each category of beer. It can be inferred from the plot that the CIs for each category are very narrow and hence we can be confident about our model’s estimated mean rating for each category. It can further be inferred that the Lager category of beers have the lowest mean rating whereas the IPA category has the highest. The plot also shows us the density of raw data across categories and thus it can noticed that Lager & Other category of beer has the largest variance in ratings, whereas the ratings for other categories is densely populated between the 3.5 – 4.5 rating value.
+
+In conclusion, given the variance of raw data and the difference in mean rating across categories, it can be said that beer category is a significant predictor of the rating of beer.  
+
+---
+
+# Part B
+
+## Code 
+
+``` {r Question 2b(1) Analysis}
+#Plotting the linear model to observe the relationship between ABV and rating
+ggplot(craft_beer_data, aes(y=rating, x=ABV)) + geom_point() + labs(y="Ratings for Beer", x="Alcohol by Volume in Beer", title = "Relationship Between ABV & Rating", subtitle = "Shaded area shows 95% CI for best fitting regression line.") +  geom_smooth(method=lm)
+
+#The above graph shows that their is a positive trend between ABV and rating, where if one goes up the other rises as well. It can also be noticed that very few beers have an ABV value of greater than 20. Thus graph isn't fully clear since the data is not evenly spread, other steps are required to truly observe the relationship between ABV and rating. 
+
+#Finding the correlation and r value between ABV and rating
+rcorr(as.matrix(select(craft_beer_data,ABV, rating)))
+
+#As seen in the above correlation matrix, ABV and rating are positively correlated with a r value of 0.4 - indicating that when one increases the other increases as well. ABV accounts for 16% of the variance in rating. Further the p value tells us (p < 0.05) that the relationship between ABV and rating is highly significant. 
+
+#Using linear regression to check if the relationship between ABV and rating is significant in a linear model 
+m.rating.by.abv <- lm (rating~ABV, data = craft_beer_data)
+#Using NHST approach
+summary(m.rating.by.abv)
+
+#The low p value and hight t value once again confirm that the relationship between ABV and rating is significant t(5556) = 32.3, p<0.0001. The beta coefficient (slope) between rating and ABV tells us that it is a positive trend that is for every unit increase in ABV, there is an increase in ratings by 0.07. 
+
+#Using estimation approach
+cbind(coefficient=coef(m.rating.by.abv), confint(m.rating.by.abv))
+# The estimated value of slope between rating and ABV is 0.07 95% CI [0.070 - 0.074]. In addition to the CI being compact, 0 is not included within the 95% CI [0.070 - 0.074]. Hence we can be confident about our model's estimation. 
+
+```
+
+``` {r Question 2b(2) Analysis}
+#Plotting the linear model to show the relationship between ratings and sweetness
+ggplot(craft_beer_data, aes(y=rating, x=Sweet)) + geom_point() + labs(y="Ratings for Beer", x="Amount of Sweetness", title = "Relationship Between Rating & Sweetness", subtitle = "Shaded area shows 95% CI for best fitting regression line.") +  geom_smooth(method=lm)
+
+#Plotting the linear model to show the relationship between ratings and malt
+ggplot(craft_beer_data, aes(y=rating, x=Malty)) + geom_point() + labs(y="Ratings for Beer", x="Amount of Malt", title = "Relationship Between Rating & Malty", subtitle = "Shaded area shows 95% CI for best fitting regression line.") +  geom_smooth(method=lm)
+
+rcorr(as.matrix(select(craft_beer_data, rating, Malty, Sweet)))
+
+#Both the above plots show that there is a positive trend between rating & sweetness and rating & malt. The r value between rating & Sweet (r = 0.29) and rating & Malty (r = 0.17) indicate the same positive trend. We can further also deduce that these trends are significant since the p value between rating & Sweet (p<0.05) and rating & Malty (p<0.05) is less than the threshold. 
+
+#Performing linear regression to see the individual effect of rating & Sweet and rating & Malty 
+#Individual effect of Sweet on rating
+m.rating.by.sweet <- lm(rating~Sweet, data=craft_beer_data)
+summary(m.rating.by.sweet)
+
+#The beta coefficient between rating & Sweet is 0.0035, which indicates a positive trend. This is a significant relationship due to the high t value and small p value observed, t(5556) = 22.69, p<0.0001. 
+
+cbind(coef(m.rating.by.sweet), confint(m.rating.by.sweet))
+
+#For every unit increase in sweetness, ratings significantly increase by 0.0035 95% CI [0.0032 - 0.0039]. As 0 does not lie within the 95% CI we can be confident about the  model's estimate of slope between rating and Sweet. 
+
+#Individual effect of Malty on rating
+m.rating.by.malt <- lm(rating~Malty, data=craft_beer_data)
+summary(m.rating.by.malt)
+
+#The beta coefficient between rating & Malty is 0.0016, which indicates a positive trend. This is a significant relationship due to the high t value and small p value observed, t(5556) = 12.6, p<0.0001. 
+
+cbind(coef(m.rating.by.malt), confint(m.rating.by.malt))
+#For every unit increase in malt, ratings significantly increase by 0.0016 95% CI [0.0013 - 0.0019]. As 0 does not lie within the 95% CI we can be confident about the  model's estimate of slope between rating and Malty. 
+
+#Performing multi regression to see how this trend is impacted when trying to predict ratings while including ABV value and Sweetness or Malt. 
+
+#Combined effect of ABV & Sweet on rating
+m.rating.by.abv.sweet <- lm(rating ~ ABV + Sweet, data = craft_beer_data)
+summary(m.rating.by.abv.sweet)
+
+#The beta coefficient (slope) between rating & ABV is 0.058, which indicates a positive trend. This is a significant relationship due to the high t value and small p value observed, t(5555) = 25.23, p<0.0001. The slope between rating & Sweet is 0.0019, which also indicates a positive trend. This is also a significant relationship as evidenced by the small p value, t(5555) = 11.81, p<0.0001. 
+
+cbind(coef(m.rating.by.abv.sweet), confint(m.rating.by.abv.sweet))
+
+#When estimating the effect of both ABV and Sweet in the same regression we find that when controlling for other variables, a unit extra of ABV predicts 0.058 95% CI [0.054 - 0.063] extra ratings for beer and a unit increase in sweetness predicts an increase in ratings by 0.0019 95% CI [0.0016 - 0.0022]. We can be confident about our model's estimate as 0 does not lie within either CI. 
+
+#Combined effect of ABV & Malty on rating
+m.rating.by.abv.malt <- lm(rating ~ ABV + Malty, data = craft_beer_data)
+summary(m.rating.by.abv.malt)
+
+#The beta coefficient (slope) between rating & ABV is 0.066, which indicates a positive trend. This is a significant relationship due to the high t value and small p value observed, t(5555) = 30.48, p<0.0001. The slope between rating & Malty is 0.0009, which also indicates a positive trend. This is also a significant relationship as evidenced by the small p value, t(5555) = 7.66, p<0.0001. 
+
+cbind(coef(m.rating.by.abv.malt), confint(m.rating.by.abv.malt))
+
+#When estimating the effect of both ABV and Malty in the same regression we find that when controlling for other variables, a unit extra of ABV predicts 0.066 95% CI [0.062 - 0.071] extra ratings for beer and a unit increase in malt predicts an increase in ratings by 0.0009 95% CI [0.0007 - 0.0011]. We can be confident about our model's estimate as 0 does not lie within either CI. 
+
+#It can be inferred that when looking into the combined effect of ABV & Malty and ABV & Sweet in the same regression, the estimation of slope between rating & ABV, rating & Malty and rating & Sweet has decreased when compared to their individual effect in the estimation of slope, thus the change in the slope is most likely due to multicollinearity between variables ABV, Sweet and Malty. 
+
+#Checking if multicollineartiy between variables needs action
+vif(m.rating.by.abv.malt)
+vif(m.rating.by.abv.sweet)
+
+#Multicollinearity is minimal, since the Variance Inflation Factor for variables in both the main models for ABV & Malt and ABV & Sweet are less than 5. 
+
+#Checking to see how this trend changes when including interaction effect between ABV & Sweet and ABV & Malty. 
+#Interaction effect between ABV & Sweet
+m.rating.by.abv.sweet.intr <- lm(rating ~ ABV * Sweet, data = craft_beer_data)
+summary(m.rating.by.abv.sweet.intr)
+
+#When estimating the interaction effect between ABV and Sweet, the beta coefficient for ABV:Sweet shows us that there is a negative interaction between ABV and Sweet when predicting rating. This implies for every unit increase in ABV, there is a unit decrease in the value of Sweet by 0.0002.This is a significant interaction effect as implied by the small p value, t(5554) = -4.10, p<0.0001.  
+
+cbind(coef(m.rating.by.abv.sweet.intr), confint(m.rating.by.abv.sweet.intr))
+#The beta coefficient for ABV:Sweet is -0.0002 95% CI [-0.0002 - -0.00010 ]. 
+
+#Interaction effect between ABV & Malty
+m.rating.by.abv.malt.intr <- lm(rating ~ ABV * Malty, data = craft_beer_data)
+summary(m.rating.by.abv.malt.intr)
+
+#When estimating the interaction effect between ABV and Malty, the beta coefficient for ABV:Malty shows us that there is a positive interaction between ABV and Malty when predicting rating.This is a significant interaction effect as implied by the small p value, t(5554) = 5.049, p<0.0001.  
+
+cbind(coef(m.rating.by.abv.malt.intr), confint(m.rating.by.abv.malt.intr))
+
+#The beta coefficient for ABV:Malty is 0.0002 95% CI [0.00013 - 0.0003]. 
+
+#Since there is an interaction effect between ABV and Malty and ABV and Sweet, using ANOVA to see whether the main model or interaction model for both the relationships should be used to predict rating
+
+#Checking for ABV & Sweet
+anova(m.rating.by.abv.sweet, m.rating.by.abv.sweet.intr)
+#Adding the interaction effect between ABV and Sweet significantly improves the fit of the model to predict the rating of the beer, F(1,5554) = 16.8, p<0.0001. 
+
+#Checking for ABV and Malty
+anova(m.rating.by.abv.malt, m.rating.by.abv.malt.intr)
+#Adding the interaction effect between ABV and Malt significantly improves the fit of the model to predict the rating of the beer, F(1,5554) = 25.5, p<0.0001. 
+
+```
+
+``` {r Question 2b(3-5) Analysis} 
+#Visualizing the main effects and interaction effects for ABV and Sweet - purely for visualization purposes doesn't reflect the data in the dataset
+
+intr.surf.data <- tibble(ABV = unlist(expand.grid(seq(0, 160, 2), seq(0, 80, 0.5))[1]),
+                         Sweet = unlist(expand.grid(seq(0, 160, 2), seq(0, 80, 0.5))[2]))
+
+intr.surf.data <- mutate(intr.surf.data,
+                         main.hat = predict(m.rating.by.abv.sweet, intr.surf.data),
+                         intr.hat = predict(m.rating.by.abv.sweet.intr, intr.surf.data))
+
+surf.main <- ggplot(intr.surf.data, aes(ABV, Sweet)) + geom_contour_filled(aes(z = main.hat)) + labs(subtitle = "Main Effects", x = "Amount of ABV", y = "Amount of Sweetness")  + guides(fill=guide_legend(title="Rating"))
+surf.intr <- ggplot(intr.surf.data, aes(ABV, Sweet)) + geom_contour_filled(aes(z = intr.hat)) + labs(subtitle = "Interaction Effects", x = "Amount of ABV", y = "Amount of Sweetness")   + guides(fill=guide_legend(title="Rating"))
+grid.arrange(surf.main, surf.intr, nrow = 1, top = "Main Effect vs Interaction Effect Between ABV & Sweet")
+
+#The above plots clearly show the negative interaction effect between ABV and Sweet, indicating that when sweetness is low the increase in ABV will move up the contours and maximize rating, whereas if sweetness is high the increase in ABV will not move up all contours and maximize rating. Also if ABV is low the increase in sweetness will not move up the contours and maximize rating, if ABV is high the increase in sweetness doesn't necessarily guarantee maximum rating. 
+
+#Visualizing the main effects and interaction effects for ABV and Malty - purely for visualization purposes doesn't reflect the data in the dataset
+
+intr.surf.data <- tibble(ABV = unlist(expand.grid(seq(0, 170, 2), seq(0, 120, 2))[1]),
+                         Malty = unlist(expand.grid(seq(0, 170, 2), seq(0, 120, 2))[2]))
+
+intr.surf.data <- mutate(intr.surf.data,
+                         main.hat = predict(m.rating.by.abv.malt, intr.surf.data),
+                         intr.hat = predict(m.rating.by.abv.malt.intr, intr.surf.data))
+
+surf.main <- ggplot(intr.surf.data, aes(ABV, Malty)) + geom_contour_filled(aes(z = main.hat)) + labs(subtitle = "Main Effects", x = "Amount of ABV", y = "Amount of Malt")  + guides(fill=guide_legend(title="Rating"))
+surf.intr <- ggplot(intr.surf.data, aes(ABV, Malty)) + geom_contour_filled(aes(z = intr.hat)) + labs(subtitle = "Interaction Effects", x = "Amount of ABV", y = "Amount of Malt")   + guides(fill=guide_legend(title="Rating"))
+grid.arrange(surf.main, surf.intr, nrow = 1, top = "Main Effect vs Interaction Effect Between ABV & Malty")
+
+#The above plots clearly show the positive interaction effect between ABV and Malty, indicating that when malt is low the increase in ABV will not move up the contours and maximize rating, whereas if malt is high the increase in ABV will move up all contours and maximize rating. Also if ABV is low the increase in malt will not move up the contours and maximize rating, if ABV is high the increase in malt will guarantee maximum rating. 
+
+#Plotting to see the main vs interaction effect difference for ABV vs Sweet and ABV vs Malt. The plots below are purely for visualization and understanding. Sample values are given for plotting.
+
+colors <- c("With Interaction" = "#0000FF", "Without Interaction" = "#FF0000")
+#ABV vs Sweet
+sample_craft_beer_data<- tibble(ABV = c(1, 17, 46, 61, 77, 90), Sweet = c(1.4, 4, 18, 120, 170, 200))
+p2_abv_sweet <- mutate(sample_craft_beer_data,
+       main.hat = predict(m.rating.by.abv.sweet, sample_craft_beer_data),
+       intr.hat = predict(m.rating.by.abv.sweet.intr, sample_craft_beer_data)) %>%
+  ggplot() + 
+  geom_line(aes(Sweet, main.hat, colour = "Without Interaction"), size = 1) +
+  geom_line(aes(Sweet, intr.hat, colour = "With Interaction"), size = 1) + 
+  labs(y ="Rating", x = "Amount of Sweet", subtitle = "Effect Difference for ABV vs Sweet\nSample ABV values (low to high) given for plot - 1, 17, 46, 61, 77, 90") + 
+    scale_color_manual(name = "Legend", values = colors) 
+
+#The above plot shows how that the main model without interaction and the model with interaction are similar as long as ABV rises and sweetness remains low, but as soon as ABV value & sweetness value keeps rising the ratings being predicted by the model with interaction remain the same showing the negative interaction effect between ABV and Sweet. 
+
+#ABV vs Malt
+sample_craft_beer_data<- tibble(ABV = c(1, 7, 23, 46, 61, 77), Malty = c(1.4, 31.4, 75.6, 130, 170, 200))
+p1_abv_malt <- mutate(sample_craft_beer_data,
+       main.hat = predict(m.rating.by.abv.malt, sample_craft_beer_data),
+       intr.hat = predict(m.rating.by.abv.malt.intr, sample_craft_beer_data)) %>%
+  ggplot() + 
+  geom_line(aes(Malty, main.hat, colour = "Without Interaction"), size = 1) +
+  geom_line(aes(Malty, intr.hat, colour = "With Interaction"), size = 1) + 
+  labs(y ="Rating", x = "Amount of Malt", subtitle = "Effect Difference for ABV vs Malty\nSample ABV values (low to high) given for plot - 1, 7, 23, 46, 61, 77") + 
+    scale_color_manual(name = "Legend", values = colors) 
+
+#The above plot tells us that main model (without interaction) steadily rises in rating as malt value and ABV value rise, however the slope of the model with interaction rises more steeply as ABV and malt value rise. Thus showing the positive interaction effect between ABV and Malty. 
+
+grid.arrange(p2_abv_sweet, p1_abv_malt, ncol = 1, top  = "With Interaction vs Without Interaction Difference")
+
+```
+
+---
+
+## Report
+
+1) The company would like to know whether, on average, a beer receives a higher rating if it has a higher or lower ABV. 
+
+   - The calculated correlation value between rating and ABV was 0.4. Thus there is a positive       correlation/trend between rating and ABV. This means that when either of them increase in       value the other increases in value as well and conversely when either of them decrease in       value the other decreases in value too. Thus a beer that has a high ABV receives a higher       rating than a beer that has a lower ABV. When 1 unit of ABV increases there is an increase      in ratings for a beer by 0.07 units 95% CI [0.070 - 0.074]. Further, the relationship           between rating and ABV is statistically significant, t(5556) = 32.33, p<0.0001. 
+
+2)	 
+a) The company would like to know if having more or less Sweet or Malty elements in the flavour results in higher or lower ratings. 
+
+   - Before looking into the combined effect of the flavour elements with ABV on rating, the         individual effect of these elements on rating was calculated and statistically significant      positive trends were observed. Thus every extra unit of increase in Sweet increases the         rating of the beer by 0.0035 extra units t(5556) = 22.69, p<0.0001, 95% CI [0.0032 -            0.0039]. Every unit of increase in Malty increases the rating of the beer by 0.0016 units       t(5556) = 12.6, p<0.0001, 95% CI [0.0013 - 0.0019]. 
+
+   Conclusions from the combined effect of ABV & Sweet on rating – 
+
+   - We found that when holding the amount of sweetness constant the rating of a beer increases      by a statistically significant 0.058 units t(5555) = 25.23, p<0.0001, 95% CI [0.054 -           0.063] for every extra unit of ABV.
+
+   - When controlling the value of ABV, the rating of a beer increases by 0.0019 units 95% CI        [0.0016 - 0.0022] for every extra unit of Sweet, which is significantly different from zero      t(5555) = 11.81, p<0.0001.
+
+   Conclusions from the combined effect of ABV & Malt on rating – 
+
+   - We found that when holding the amount of malt constant the rating of beer increases by a        statistically significant 0.066 units t(5555) = 30.48, p<0.0001, 95% CI [0.062 - 0.071] for      every extra unit of ABV. 
+
+   - When controlling the value of ABV, the rating of beer increases by 0.0009 95% CI [0.0007 -      0.0011] units for every extra unit of Malty, which is significantly different from zero         t(5555) = 7.66, p<0.0001. 
+
+   Conclusions from including the interaction term for ABV & Sweet – 
+
+   - A negative interaction exists between ABV & Sweet. This means that for every unit increase      in ABV, there is a decrease in the value of Sweet by 0.0002 units,  t(5554) = -4.10,            p<0.0001, 95% CI [-0.0002 - -0.00010 ].
+   
+   - The interaction is a significant predictor of rating of beer. 
+
+   Conclusions from including the interaction term for ABV & Malty – 
+
+   - A positive interaction exists between ABV & Malty. This means that for every unit increase      in ABV, there is an increase in the value of Malty by 0.0002 units,  t(5554) = 5.049,           p<0.0001, 95% CI [0.00013 - 0.0003]].
+  
+   - This interaction is a significant predictor of rating of beer. 
+
+   Thus it is clear that the model analysis should include interaction terms since they’re         significant predictors of rating. In addition to this a model comparison test that compares     the model with interaction and the model without interaction shows that the overall model fit    is significantly improved when interaction terms for ABV & Sweety F(1,5554) = 16.8, p<0.0001    and ABV & Malty F(1,5554) = 25.5, p<0.0001 are included in the analysis. 
+
+
+3) Do the results suggest that beers with higher or lower ABVs should have different flavours if the company is trying to maximise ratings 
+
+   Conclusions below are drawn based on the contour plot and the kind of interaction observed      between ABV & Sweet and ABV & Malty. 
+
+   - Since there exists a positive interaction between ABV & Malty, beers with High ABV should       be paired with Malty flavour, because the increase in the value of Malt will result in          ratings being maximized. 
+
+   - Since there exists a negative interaction between ABV & Sweet, beers with High ABV can also      be paired with Sweet flavour, because any decrease in the value of Sweet will result in         ratings being maximized. 
+
+   This is why higher or lower ABVs should have different flavours if the company is trying to     maximize ratings. 
+
+```{r print plot, echo = FALSE, message = FALSE}
+print(p2_abv_sweet)
+
+print(p1_abv_malt)
+
+```
+
+The above plot demonstrates the difference in prediction of ratings based on whether the interaction term has been included in the analysis. The graphs have been plotted by providing it sample ABV, Malty and Sweet values, that resemble the craft beer dataset. Since it has already been proved that interaction terms should be included in the analysis, the next set of questions will be answered by looking into the models with interaction that have been plotted above. The models without interaction plots have been given just for comparison. 
+
+4) What flavourings should the company use more/less of if they are creating a high ABV beer 
+
+   - Based on the above graph for ABV vs Sweet, it is clear that for high ABV beers less of          Sweet flavour should be used by the company to maximize ratings since there exists a            negative interaction between the two. 
+
+   - Based on the above graph for ABV vs Malty, it is clear that for high ABV beers more of          Malty flavour should be used by the company to maximize ratings since there exists a            positive interaction between the two. 
+
+5)	What flavourings should the company use more/less of if they are creating a low ABV beer 
+
+    - Based on the above graph for ABV vs Sweet it is clear that for low ABV beers, there is          only a marginal difference in ratings irrespective of whether it is paired with more or         less Sweet. But for marginally better ratings the company should use more of Sweet. 
+
+    - Similarly based on the above graph for ABV vs Malty it is clear that for low ABV beers          pairing it with more of Malty will result in marginally better ratings than pairing it          with less of Malty.  
+    
+---
