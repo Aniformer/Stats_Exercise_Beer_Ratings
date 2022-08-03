@@ -1,4 +1,4 @@
-#Stats_Exercise_Beer_Ratings
+# Stats_Exercise_Beer_Ratings
 Analyzed distribution of confidence intervals of the rating within each category of beer, using a linear model.Further visualized the distribution of beer ratings within each category of beer. 
 
 Used statistical techniques such as  to answer questions such as: 
